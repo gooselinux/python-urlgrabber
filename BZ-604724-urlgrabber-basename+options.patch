@@ -1,0 +1,145 @@
+From a693f67d4933305c9c87adeefdd8d060765cf143 Mon Sep 17 00:00:00 2001
+From: James Antill <james@and.org>
+Date: Wed, 14 Jul 2010 11:24:07 -0400
+Subject: [PATCH 1/4] Fix the -o option
+
+---
+ scripts/urlgrabber |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/scripts/urlgrabber b/scripts/urlgrabber
+index 518e512..73a343f 100644
+--- a/scripts/urlgrabber
++++ b/scripts/urlgrabber
+@@ -170,7 +170,7 @@ class client_options:
+         return ug_options, ug_defaults
+ 
+     def process_command_line(self):
+-        short_options = 'vd:hoOpD'
++        short_options = 'vd:ho:OpD'
+         long_options = ['profile', 'repeat=', 'verbose=',
+                         'debug=', 'help', 'progress']
+         ug_long = [ o + '=' for o in self.ug_options ]
+-- 
+1.7.0.1
+
+
+From 6858688f3050e7bb35d7fb5295140cf2143a9182 Mon Sep 17 00:00:00 2001
+From: James Antill <james@and.org>
+Date: Wed, 14 Jul 2010 11:25:15 -0400
+Subject: [PATCH 2/4] Add --output option.
+
+---
+ scripts/urlgrabber |    4 +++-
+ 1 files changed, 3 insertions(+), 1 deletions(-)
+
+diff --git a/scripts/urlgrabber b/scripts/urlgrabber
+index 73a343f..d0fa181 100644
+--- a/scripts/urlgrabber
++++ b/scripts/urlgrabber
+@@ -115,6 +115,7 @@ options:
+                     including quotes in the case of strings.
+                     e.g.  --user_agent='"foobar/2.0"'
+ 
++  --output FILE
+   -o FILE           write output to FILE, otherwise the basename of the
+                     url will be used
+   -O                print the names of saved files to STDOUT
+@@ -172,7 +173,7 @@ class client_options:
+     def process_command_line(self):
+         short_options = 'vd:ho:OpD'
+         long_options = ['profile', 'repeat=', 'verbose=',
+-                        'debug=', 'help', 'progress']
++                        'debug=', 'help', 'progress', 'output=']
+         ug_long = [ o + '=' for o in self.ug_options ]
+         optlist, args = getopt.getopt(sys.argv[1:], short_options,
+                                       long_options + ug_long)
+@@ -193,6 +194,7 @@ class client_options:
+             if o == '--verbose': self.verbose = v
+             if o == '-v':        self.verbose += 1
+             if o == '-o':        self.outputfile = v
++            if o == '--output':  self.outputfile = v
+             if o == '-p' or o == '--progress': self.progress = 1
+             if o == '-d' or o == '--debug': self.debug = v
+             if o == '--profile': self.profile = 1
+-- 
+1.7.0.1
+
+
+From 7b4c3097a118904f6c6dba12fafc1de8c32fa7d7 Mon Sep 17 00:00:00 2001
+From: James Antill <james@and.org>
+Date: Wed, 14 Jul 2010 11:27:37 -0400
+Subject: [PATCH 3/4] If there is no basename, use index.html
+
+---
+ urlgrabber/grabber.py |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/urlgrabber/grabber.py b/urlgrabber/grabber.py
+index af07d43..27d8eb3 100644
+--- a/urlgrabber/grabber.py
++++ b/urlgrabber/grabber.py
+@@ -943,6 +943,9 @@ class URLGrabber:
+         (scheme, host, path, parm, query, frag) = parts
+         if filename is None:
+             filename = os.path.basename( urllib.unquote(path) )
++            if not filename:
++                # This is better than nothing.
++                filename = 'index.html'
+         if scheme == 'file' and not opts.copy_local:
+             # just return the name of the local file - don't make a 
+             # copy currently
+-- 
+1.7.0.1
+
+
+From 1bfef62a275d0b5f6231579c4add92384509303b Mon Sep 17 00:00:00 2001
+From: James Antill <james@and.org>
+Date: Wed, 14 Jul 2010 11:33:04 -0400
+Subject: [PATCH 4/4] Don't traceback when we get an unknown option.
+
+---
+ scripts/urlgrabber |   13 +++++++++----
+ 1 files changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/scripts/urlgrabber b/scripts/urlgrabber
+index d0fa181..09cd896 100644
+--- a/scripts/urlgrabber
++++ b/scripts/urlgrabber
+@@ -175,8 +175,13 @@ class client_options:
+         long_options = ['profile', 'repeat=', 'verbose=',
+                         'debug=', 'help', 'progress', 'output=']
+         ug_long = [ o + '=' for o in self.ug_options ]
+-        optlist, args = getopt.getopt(sys.argv[1:], short_options,
+-                                      long_options + ug_long)
++        try:
++            optlist, args = getopt.getopt(sys.argv[1:], short_options,
++                                          long_options + ug_long)
++        except getopt.GetoptError, e:
++            print >>sys.stderr, "Error:", e
++            self.help([], ret=1)
++
+         self.verbose = 0
+         self.debug = None
+         self.outputfile = None
+@@ -224,7 +229,7 @@ class client_options:
+             print "ERROR: cannot use -o when grabbing multiple files"
+             sys.exit(1)
+ 
+-    def help(self, args):
++    def help(self, args, ret=0):
+         if not args:
+             print MAINHELP
+         else:
+@@ -236,7 +241,7 @@ class client_options:
+                     self.help_ug_option(a)
+                 else:
+                     print 'ERROR: no help on command "%s"' % a
+-        sys.exit(0)
++        sys.exit(ret)
+ 
+     def help_doc(self):
+         print __doc__
+-- 
+1.7.0.1
+
